@@ -1,0 +1,4 @@
+.env
+/build
+.dart_tool
+.gitmessage.txt
