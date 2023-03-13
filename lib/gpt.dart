@@ -14,31 +14,36 @@ class GptScreen extends StatefulWidget {
 
 class _GptScreenState extends State<GptScreen> {
   final ValueNotifier<String> _inputValue = ValueNotifier<String>('');
-  final StreamController<String> _inputValueStream = StreamController<String>();
 
+  final TextEditingController _textEditingController = TextEditingController();
+  final StreamController<String> _inputValueStream = StreamController<String>();
   final ScrollController _scrollController =
       ScrollController(initialScrollOffset: 0);
-  late final StreamController<ChatCTResponse?> _tController;
+  final StreamController<ChatCTResponse?> _tController =
+      StreamController<ChatCTResponse?>.broadcast();
   late final OpenAI _openAI;
   List<Map<String, dynamic>> chatList = [];
 
   @override
   void initState() {
     super.initState();
-    _tController = StreamController<ChatCTResponse?>.broadcast();
-
     _openAI = OpenAI.instance.build(
         token: dotenv.env['GPT_TOKEN'],
         baseOption: HttpSetup(
-            sendTimeout: const Duration(seconds: 30),
-            connectTimeout: const Duration(seconds: 30),
-            receiveTimeout: const Duration(seconds: 30)),
+            sendTimeout: const Duration(minutes: 3),
+            connectTimeout: const Duration(minutes: 3),
+            receiveTimeout: const Duration(minutes: 3)),
         isLogger: true);
   }
 
   @override
   void dispose() {
+    _openAI.close();
+    _tController.close();
+    _inputValueStream.close();
     _scrollController.dispose();
+    _textEditingController.dispose();
+    _inputValue.dispose();
     super.dispose();
   }
 
@@ -48,8 +53,8 @@ class _GptScreenState extends State<GptScreen> {
         appBar: AppBar(),
         body: Column(
           children: [
-            Expanded(flex: 9, child: chatListWidget()),
-            Expanded(flex: 1, child: textInputWidget()),
+            Expanded(flex: 8, child: chatListWidget()),
+            Expanded(flex: 2, child: textInputWidget()),
           ],
         ));
   }
@@ -65,16 +70,11 @@ class _GptScreenState extends State<GptScreen> {
             scrollDirection: Axis.vertical,
             itemCount: chatList.length + 1,
             itemBuilder: (context, index) {
-              if (index != chatList.length) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (_scrollController.hasClients) {
-                    _scrollController.animateTo(
-                        _scrollController.position.maxScrollExtent,
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeInOut);
-                  }
-                });
+              if (index == chatList.length) {
+                scrollToDown();
+              }
 
+              if (index != chatList.length) {
                 return chatList[index]['user'] == 'user'
                     ? ListTile(
                         trailing: const CircleAvatar(child: Text('ME')),
@@ -90,60 +90,49 @@ class _GptScreenState extends State<GptScreen> {
                         title: Text(chatList[index]['msg']!,
                             textAlign: TextAlign.start));
               } else {
-                return
-                    // StreamBuilder<CTResponse?>(
-                    StreamBuilder<ChatCTResponse?>(
-                        stream: _tController.stream,
-                        builder: (context, snapshot) {
-                          final data = snapshot.data;
+                return StreamBuilder<ChatCTResponse?>(
+                    stream: _tController.stream,
+                    builder: (context, snapshot) {
+                      final data = snapshot.data;
 
-                          if (snapshot.connectionState ==
-                              ConnectionState.active) {
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              if (_scrollController.hasClients) {
-                                _scrollController.animateTo(
-                                    _scrollController.position.maxScrollExtent,
-                                    duration: const Duration(milliseconds: 200),
-                                    curve: Curves.easeInOut);
-                              }
-                            });
+                      if (snapshot.connectionState == ConnectionState.active) {
+                        scrollToDown();
 
-                            int randomNumber =
-                                Random().nextInt(data!.choices.length);
+                        int randomNumber =
+                            Random().nextInt(data!.choices.length);
 
-                            String gptAnswer =
-                                data.choices[randomNumber].message.content;
+                        String gptAnswer =
+                            data.choices[randomNumber].message.content;
 
-                            chatList.add({'user': 'gpt', 'msg': gptAnswer});
+                        chatList.add({'user': 'gpt', 'msg': gptAnswer});
 
-                            return ListTile(
-                                leading: CircleAvatar(
-                                    backgroundColor: Colors.transparent,
-                                    child: Image.asset(
-                                      'images/chatgpt_logo.png',
-                                      color: Colors.black,
-                                    )),
-                                title: Text(gptAnswer,
-                                    textAlign: TextAlign.start));
-                          } else if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return ListTile(
-                                leading: CircleAvatar(
-                                    backgroundColor: Colors.transparent,
-                                    child: Image.asset(
-                                      'images/chatgpt_logo.png',
-                                      color: Colors.black,
-                                    )),
-                                title: const Center(
-                                  child: SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator()),
-                                ));
-                          } else {
-                            return Container();
-                          }
-                        });
+                        return ListTile(
+                            leading: CircleAvatar(
+                                backgroundColor: Colors.transparent,
+                                child: Image.asset(
+                                  'images/chatgpt_logo.png',
+                                  color: Colors.black,
+                                )),
+                            title: Text(gptAnswer, textAlign: TextAlign.start));
+                      } else if (snapshot.connectionState ==
+                          ConnectionState.waiting) {
+                        return ListTile(
+                            leading: CircleAvatar(
+                                backgroundColor: Colors.transparent,
+                                child: Image.asset(
+                                  'images/chatgpt_logo.png',
+                                  color: Colors.black,
+                                )),
+                            title: const Center(
+                              child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator()),
+                            ));
+                      } else {
+                        return Container();
+                      }
+                    });
               }
             },
           );
@@ -167,37 +156,60 @@ class _GptScreenState extends State<GptScreen> {
               valueListenable: _inputValue,
               builder: (BuildContext context, value, Widget? child) {
                 return TextFormField(
-                  initialValue: _inputValue.value,
-                  onChanged: (value) => _inputValue.value = value,
-                );
+                    controller: _textEditingController,
+                    onChanged: (value) => _inputValue.value = value,
+                    onFieldSubmitted: (value) {
+                      _inputValue.value = value;
+                      requestGPT();
+                    },
+                    decoration: const InputDecoration(                        
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.all(Radius.circular(20)),
+                            borderSide: BorderSide(color: Colors.blue))));
               },
             )),
-            IconButton(
-                onPressed: () async {
-                  chatList.add({'user': 'user', 'msg': _inputValue.value});
-                  _inputValueStream.sink.add(_inputValue.value);
-
-                  // final models = await _openAI.listModel();
-
-                  final request = ChatCompleteText(
-                    messages: [
-                      Map.of({"role": "user", "content": _inputValue.value})
-                    ],
-                    maxToken: 500,
-                    model: kChatGptTurbo0301Model, //charGPT 3.5 Turbo
-                  );
-
-                  _openAI
-                      .onChatCompletionStream(request: request)
-                      .asBroadcastStream()
-                      .listen((res) {
-                    _tController.sink.add(res);
-                  });
-                },
-                icon: const Icon(Icons.send))
+            IconButton(onPressed: requestGPT, icon: const Icon(Icons.send))
           ],
         ),
       ),
     );
+  }
+
+  void scrollToDown() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(_scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut);
+      }
+    });
+  }
+
+  void requestGPT() {
+    if (_inputValue.value.isEmpty) {
+      return;
+    }
+    chatList.add({'user': 'user', 'msg': _inputValue.value});
+    _inputValueStream.sink.add(_inputValue.value);
+
+    // final models = await _openAI.listModel();
+
+    final request = ChatCompleteText(
+      messages: [
+        Map.of({"role": "user", "content": _inputValue.value})
+      ],
+      maxToken: 500,
+      model: kChatGptTurbo0301Model, //charGPT 3.5 Turbo
+    );
+
+    _openAI
+        .onChatCompletionStream(request: request)
+        .asBroadcastStream()
+        .listen((res) {
+      _tController.sink.add(res);
+    });
+
+    _textEditingController.clear();
+    scrollToDown();
   }
 }
