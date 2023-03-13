@@ -1,26 +1,26 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:chat_gpt_sdk/chat_gpt_sdk.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-class GptScreen extends StatefulWidget {
-  const GptScreen({key}) : super(key: key);
+class GptImageGeneraterScreen extends StatefulWidget {
+  const GptImageGeneraterScreen({key}) : super(key: key);
 
   @override
-  State<GptScreen> createState() => _GptScreenState();
+  State<GptImageGeneraterScreen> createState() =>
+      _GptImageGeneraterScreenState();
 }
 
-class _GptScreenState extends State<GptScreen> {
+class _GptImageGeneraterScreenState extends State<GptImageGeneraterScreen> {
   final ValueNotifier<String> _inputValue = ValueNotifier<String>('');
 
   final TextEditingController _textEditingController = TextEditingController();
   final StreamController<String> _inputValueStream = StreamController<String>();
   final ScrollController _scrollController =
       ScrollController(initialScrollOffset: 0);
-  final StreamController<ChatCTResponse?> _tController =
-      StreamController<ChatCTResponse?>.broadcast();
+  final StreamController<GenImgResponse?> _tController =
+      StreamController<GenImgResponse?>.broadcast();
   late final OpenAI _openAI;
   List<Map<String, dynamic>> chatList = [];
 
@@ -52,7 +52,7 @@ class _GptScreenState extends State<GptScreen> {
     return Scaffold(
         appBar: AppBar(
           centerTitle: true,
-          title: const Text('ChatGPT 채팅'),
+          title: const Text('ChatGPT Image Generater'),
         ),
         body: Column(
           children: [
@@ -90,10 +90,31 @@ class _GptScreenState extends State<GptScreen> {
                               'images/chatgpt_logo.png',
                               color: Colors.black,
                             )),
-                        title: Text(chatList[index]['msg']!,
-                            textAlign: TextAlign.start));
+                        title: Image.network(
+                          chatList[index]['msg']!,
+                          fit: BoxFit.fill,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) {
+                              return child;
+                            }
+                            return Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.red,
+                                  value: loadingProgress.expectedTotalBytes !=
+                                          null
+                                      ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                      : null,
+                                ),
+                              ),
+                            );
+                          },
+                        ));
               } else {
-                return StreamBuilder<ChatCTResponse?>(
+                return StreamBuilder<GenImgResponse?>(
                     stream: _tController.stream,
                     builder: (context, snapshot) {
                       final data = snapshot.data;
@@ -101,11 +122,7 @@ class _GptScreenState extends State<GptScreen> {
                       if (snapshot.connectionState == ConnectionState.active) {
                         scrollToDown();
 
-                        int randomNumber =
-                            Random().nextInt(data!.choices.length);
-
-                        String gptAnswer =
-                            data.choices[randomNumber].message.content;
+                        String gptAnswer = data!.data!.last!.url!;
 
                         chatList.add({'user': 'gpt', 'msg': gptAnswer});
 
@@ -116,7 +133,33 @@ class _GptScreenState extends State<GptScreen> {
                                   'images/chatgpt_logo.png',
                                   color: Colors.black,
                                 )),
-                            title: Text(gptAnswer, textAlign: TextAlign.start));
+                            title: Image.network(
+                              gptAnswer,
+                              fit: BoxFit.fill,
+                              loadingBuilder:
+                                  (context, child, loadingProgress) {
+                                if (loadingProgress == null) {
+                                  return child;
+                                }
+                                return Center(
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.red,
+                                      value:
+                                          loadingProgress.expectedTotalBytes !=
+                                                  null
+                                              ? loadingProgress
+                                                      .cumulativeBytesLoaded /
+                                                  loadingProgress
+                                                      .expectedTotalBytes!
+                                              : null,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ));
                       } else if (snapshot.connectionState ==
                           ConnectionState.waiting) {
                         return ListTile(
@@ -195,21 +238,10 @@ class _GptScreenState extends State<GptScreen> {
     chatList.add({'user': 'user', 'msg': _inputValue.value});
     _inputValueStream.sink.add(_inputValue.value);
 
-    // final models = await _openAI.listModel();
+    final request = GenerateImage(_inputValue.value, 1);
 
-    final request = ChatCompleteText(
-      messages: [
-        Map.of({"role": "user", "content": _inputValue.value})
-      ],
-      maxToken: 500,
-      model: kChatGptTurbo0301Model, //charGPT 3.5 Turbo
-    );
-
-    _openAI
-        .onChatCompletionStream(request: request)
-        .asBroadcastStream()
-        .listen((res) {
-      _tController.sink.add(res);
+    _openAI.generateImageStream(request).asBroadcastStream().listen((it) {
+      _tController.sink.add(it);
     });
 
     _textEditingController.clear();
