@@ -19,14 +19,14 @@ class _GptScreenState extends State<GptScreen> {
   final StreamController<String> _inputValueStream = StreamController<String>();
   final ScrollController _scrollController =
       ScrollController(initialScrollOffset: 0);
-  final StreamController<ChatCTResponse?> _tController =
-      StreamController<ChatCTResponse?>.broadcast();
+  late final StreamController<ChatCTResponse?> _tController;
   late final OpenAI _openAI;
   List<Map<String, dynamic>> chatList = [];
 
   @override
   void initState() {
     super.initState();
+    _tController = StreamController<ChatCTResponse?>.broadcast();
     _openAI = OpenAI.instance.build(
         token: dotenv.env['GPT_TOKEN'],
         baseOption: HttpSetup(
