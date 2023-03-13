@@ -38,12 +38,13 @@ class _GptImageGeneraterScreenState extends State<GptImageGeneraterScreen> {
 
   @override
   void dispose() {
-    _openAI.close();
     _tController.close();
     _inputValueStream.close();
     _scrollController.dispose();
     _textEditingController.dispose();
     _inputValue.dispose();
+    _openAI.genImgClose();
+    _openAI.close();
     super.dispose();
   }
 

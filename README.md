@@ -8,7 +8,11 @@
 - Model : GPT 3.5 Turbo
 
  <p align="center">
-    <img src="https://user-images.githubusercontent.com/45446457/224610992-444968b1-1eb1-4347-a29c-0c37eb5f860d.gif"  width="400" height="600"/>
+    <img src="https://user-images.githubusercontent.com/45446457/224617126-5a56ce8f-d110-4058-99a5-c8030d461456.gif"  width="400" height="600"/>
 </p>
 
 ## 이미지 생성기
+
+ <p align="center">
+    <img src="https://user-images.githubusercontent.com/45446457/224620430-280c6ee4-0c60-41f8-b046-44abfe20c266.gif"  width="400" height="600"/>
+</p>
