@@ -29,10 +29,10 @@ packages:
     dependency: "direct main"
     description:
       name: chat_gpt_sdk
-      sha256: "7b3f609f509a1a810d94323d7835a905d1e0fd106eabe576854c2b88651664ab"
+      sha256: "30a5d9d3b9b61c5e3a2f9067c7ed7efff9725a1eb07633e430455b607ed6dfc3"
       url: "https://pub.dev"
     source: hosted
-    version: "2.0.2"
+    version: "2.0.4"
   clock:
     dependency: transitive
     description:

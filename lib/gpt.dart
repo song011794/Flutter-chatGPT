@@ -18,15 +18,14 @@ class _GptScreenState extends State<GptScreen> {
 
   final ScrollController _scrollController =
       ScrollController(initialScrollOffset: 0);
-  late final StreamController<CTResponse?> _tController;
+  late final StreamController<ChatCTResponse?> _tController;
   late final OpenAI _openAI;
   List<Map<String, dynamic>> chatList = [];
 
   @override
   void initState() {
     super.initState();
-
-    _tController = StreamController<CTResponse?>.broadcast();
+    _tController = StreamController<ChatCTResponse?>.broadcast();
 
     _openAI = OpenAI.instance.build(
         token: dotenv.env['GPT_TOKEN'],
@@ -91,55 +90,60 @@ class _GptScreenState extends State<GptScreen> {
                         title: Text(chatList[index]['msg']!,
                             textAlign: TextAlign.start));
               } else {
-                return StreamBuilder<CTResponse?>(
-                    stream: _tController.stream,
-                    builder: (context, snapshot) {
-                      final data = snapshot.data;
+                return
+                    // StreamBuilder<CTResponse?>(
+                    StreamBuilder<ChatCTResponse?>(
+                        stream: _tController.stream,
+                        builder: (context, snapshot) {
+                          final data = snapshot.data;
 
-                      if (snapshot.connectionState == ConnectionState.active) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (_scrollController.hasClients) {
-                            _scrollController.animateTo(
-                                _scrollController.position.maxScrollExtent,
-                                duration: const Duration(milliseconds: 200),
-                                curve: Curves.easeInOut);
+                          if (snapshot.connectionState ==
+                              ConnectionState.active) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (_scrollController.hasClients) {
+                                _scrollController.animateTo(
+                                    _scrollController.position.maxScrollExtent,
+                                    duration: const Duration(milliseconds: 200),
+                                    curve: Curves.easeInOut);
+                              }
+                            });
+
+                            int randomNumber =
+                                Random().nextInt(data!.choices.length);
+
+                            String gptAnswer =
+                                data.choices[randomNumber].message.content;
+
+                            chatList.add({'user': 'gpt', 'msg': gptAnswer});
+
+                            return ListTile(
+                                leading: CircleAvatar(
+                                    backgroundColor: Colors.transparent,
+                                    child: Image.asset(
+                                      'images/chatgpt_logo.png',
+                                      color: Colors.black,
+                                    )),
+                                title: Text(gptAnswer,
+                                    textAlign: TextAlign.start));
+                          } else if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return ListTile(
+                                leading: CircleAvatar(
+                                    backgroundColor: Colors.transparent,
+                                    child: Image.asset(
+                                      'images/chatgpt_logo.png',
+                                      color: Colors.black,
+                                    )),
+                                title: const Center(
+                                  child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator()),
+                                ));
+                          } else {
+                            return Container();
                           }
                         });
-
-                        int randomNumber =
-                            Random().nextInt(data!.choices.length);
-
-                        String gptAnswer = data.choices[randomNumber].text;
-
-                        chatList.add({'user': 'gpt', 'msg': gptAnswer});
-
-                        return ListTile(
-                            leading: CircleAvatar(
-                                backgroundColor: Colors.transparent,
-                                child: Image.asset(
-                                  'images/chatgpt_logo.png',
-                                  color: Colors.black,
-                                )),
-                            title: Text(gptAnswer, textAlign: TextAlign.start));
-                      } else if (snapshot.connectionState ==
-                          ConnectionState.waiting) {
-                        return ListTile(
-                            leading: CircleAvatar(
-                                backgroundColor: Colors.transparent,
-                                child: Image.asset(
-                                  'images/chatgpt_logo.png',
-                                  color: Colors.black,
-                                )),
-                            title: const Center(
-                              child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator()),
-                            ));
-                      } else {
-                        return Container();
-                      }
-                    });
               }
             },
           );
@@ -175,13 +179,16 @@ class _GptScreenState extends State<GptScreen> {
 
                   // final models = await _openAI.listModel();
 
-                  final request = CompleteText(
-                      prompt: _inputValue.value,
-                      model: 'text-babbage-001',
-                      maxTokens: 500);
+                  final request = ChatCompleteText(
+                    messages: [
+                      Map.of({"role": "user", "content": _inputValue.value})
+                    ],
+                    maxToken: 500,
+                    model: kChatGptTurbo0301Model, //charGPT 3.5 Turbo
+                  );
 
                   _openAI
-                      .onCompletionStream(request: request)
+                      .onChatCompletionStream(request: request)
                       .asBroadcastStream()
                       .listen((res) {
                     _tController.sink.add(res);
